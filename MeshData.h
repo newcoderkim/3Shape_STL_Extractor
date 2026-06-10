@@ -50,7 +50,9 @@ public:
 		FacetFormatUnknown = 0,
 		FacetFormatUInt32,
 		FacetFormatUInt16,
-		FacetFormatCompressed
+		FacetFormatCompressed,
+		FacetFormatCcCommands16,
+		FacetFormatCcCommands32
 	};
 
 	CMeshData();
@@ -71,6 +73,9 @@ private:
 	BOOL UpdateBoundingBox(std::vector<CString>& logs);
 	BOOL IsFiniteFloat(float v) const;
 	BOOL IsReasonableRange(float span) const;
+	BOOL DecodeCcFacetCommands(const std::vector<unsigned char>& bytes, unsigned int facetCount, unsigned int vertexCount, BOOL use32BitPayload, CString& error);
+	BOOL ReadUInt16(const std::vector<unsigned char>& bytes, size_t& pos, unsigned int& value) const;
+	BOOL ReadUInt32(const std::vector<unsigned char>& bytes, size_t& pos, unsigned int& value) const;
 
 	std::vector<HpsVertex> m_vertices;
 	std::vector<HpsFace> m_faces;

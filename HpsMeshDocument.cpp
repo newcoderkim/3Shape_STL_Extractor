@@ -87,8 +87,18 @@ BOOL CHpsMeshDocument::Parse(std::vector<CString>& logs)
 	HpsTagData facetsTag;
 	HpsTagData textureTag;
 	HpsTagData uvTag;
+	HpsTagData schemaTag;
 
 	BOOL ok = TRUE;
+	CString schemaText;
+	if (ExtractTag(m_text, "Schema", schemaTag))
+	{
+		schemaText = CString(schemaTag.body.c_str());
+		schemaText.Trim();
+		CString line;
+		line.Format(_T("Schema = %s"), schemaText.GetString());
+		logs.push_back(line);
+	}
 	if (!ExtractTag(m_text, "Vertices", verticesTag))
 	{
 		logs.push_back(_T("Vertices 태그가 없습니다."));
@@ -186,7 +196,11 @@ BOOL CHpsMeshDocument::Parse(std::vector<CString>& logs)
 	if (!m_decodedVertices.empty())
 	{
 		if (!m_mesh.DetectVertexFormat(m_decodedVertices, m_vertexCount, logs))
+		{
+			if (schemaText.CompareNoCase(_T("CE")) == 0)
+				logs.push_back(_T("CE schema의 Vertices는 Blowfish 암호화 데이터입니다. STL 생성을 위해 HPS_ENCRYPTION_KEY 복호화 키가 필요합니다."));
 			logs.push_back(_T("Vertices 압축 포맷으로 보이며 추가 해석 필요"));
+		}
 	}
 
 	if (!m_decodedFacets.empty())
@@ -249,9 +263,27 @@ BOOL CHpsMeshDocument::ExtractTag(const std::string& text, const char* tagName, 
 	closeText += tagName;
 	closeText += ">";
 
-	size_t open = text.find(openPrefix);
-	if (open == std::string::npos)
-		return FALSE;
+	size_t open = std::string::npos;
+	size_t searchFrom = 0;
+	while (TRUE)
+	{
+		size_t candidate = text.find(openPrefix, searchFrom);
+		if (candidate == std::string::npos)
+			return FALSE;
+
+		size_t next = candidate + openPrefix.size();
+		if (next < text.size())
+		{
+			char ch = text[next];
+			if (ch == '>' || ch == '/' || ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n')
+			{
+				open = candidate;
+				break;
+			}
+		}
+
+		searchFrom = candidate + openPrefix.size();
+	}
 
 	size_t openEnd = text.find('>', open);
 	if (openEnd == std::string::npos)
@@ -321,19 +353,20 @@ std::string CHpsMeshDocument::GetAttribute(const std::map<std::string, std::stri
 BOOL CHpsMeshDocument::CompareExpectedBytes(const char* label, unsigned int expected, size_t actual, std::vector<CString>& logs)
 {
 	CString line;
+	CString labelText(label);
 	if (expected == 0)
 	{
-		line.Format(_T("%S expected bytes attribute 없음 또는 0"), label);
+		line.Format(_T("%s expected bytes attribute 없음 또는 0"), labelText.GetString());
 		logs.push_back(line);
 		return TRUE;
 	}
 	if (expected == actual)
 	{
-		line.Format(_T("%S decoded bytes 일치: %u"), label, expected);
+		line.Format(_T("%s decoded bytes 일치: %u"), labelText.GetString(), expected);
 		logs.push_back(line);
 		return TRUE;
 	}
-	line.Format(_T("%S decoded bytes 불일치: attr=%u actual=%u"), label, expected, (unsigned int)actual);
+	line.Format(_T("%s decoded bytes 불일치: attr=%u actual=%u"), labelText.GetString(), expected, (unsigned int)actual);
 	logs.push_back(line);
 	return FALSE;
 }
