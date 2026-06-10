@@ -52,7 +52,7 @@ public:
 	void AppendLog(const CString& text);
 	void AppendLogs(const std::vector<CString>& logs);
 	BOOL BrowseFolder(CString& folder);
-	BOOL AnalyzeCurrentFile();
+	BOOL AnalyzeCurrentFile(BOOL decodeBinary);
 	CString GetOutputFolder();
 	void SaveDebugFiles();
 	void CloseDialog(int nVal);

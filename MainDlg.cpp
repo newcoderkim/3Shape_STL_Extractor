@@ -112,13 +112,13 @@ LRESULT CMainDlg::OnSelectInputFolder(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /
 
 LRESULT CMainDlg::OnAnalyze(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 {
-	AnalyzeCurrentFile();
+	AnalyzeCurrentFile(FALSE);
 	return 0;
 }
 
 LRESULT CMainDlg::OnExtractStl(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 {
-	if (!m_hasParsedDocument && !AnalyzeCurrentFile())
+	if (!m_hasParsedDocument && !AnalyzeCurrentFile(TRUE))
 		return 0;
 
 	const CMeshData& mesh = m_doc.GetMeshData();
@@ -167,7 +167,7 @@ LRESULT CMainDlg::OnExtractStl(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCt
 
 LRESULT CMainDlg::OnExtractImage(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 {
-	if (!m_hasParsedDocument && !AnalyzeCurrentFile())
+	if (!m_hasParsedDocument && !AnalyzeCurrentFile(TRUE))
 		return 0;
 
 	CStringW savedPath;
@@ -208,7 +208,7 @@ LRESULT CMainDlg::OnBatchAnalyze(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWnd
 		CHpsMeshDocument doc;
 		std::vector<CString> logs;
 		if (doc.LoadFromFile(CFileUtil::ToDisplayPath(files[i]), logs))
-			doc.Parse(logs);
+			doc.Parse(logs, FALSE);
 		AppendLogs(logs);
 
 		line.Format(_T("¿ä¾à: vertex_count=%u, facet_count=%u, texture=%ux%u bpp=%u, color=%u"),
@@ -275,7 +275,7 @@ BOOL CMainDlg::BrowseFolder(CString& folder)
 	return TRUE;
 }
 
-BOOL CMainDlg::AnalyzeCurrentFile()
+BOOL CMainDlg::AnalyzeCurrentFile(BOOL decodeBinary)
 {
 	GetDlgItemText(IDC_EDIT_FILE, m_filePath);
 	if (m_filePath.IsEmpty())
@@ -288,14 +288,14 @@ BOOL CMainDlg::AnalyzeCurrentFile()
 	BOOL loaded = m_doc.LoadFromFile(m_filePath, logs);
 	BOOL parsed = FALSE;
 	if (loaded)
-		parsed = m_doc.Parse(logs);
+		parsed = m_doc.Parse(logs, decodeBinary);
 	AppendLogs(logs);
 
-	m_hasParsedDocument = loaded && parsed;
-	if (loaded)
+	m_hasParsedDocument = decodeBinary && loaded && parsed;
+	if (decodeBinary && loaded)
 		SaveDebugFiles();
 
-	return m_hasParsedDocument;
+	return loaded && parsed;
 }
 
 CString CMainDlg::GetOutputFolder()

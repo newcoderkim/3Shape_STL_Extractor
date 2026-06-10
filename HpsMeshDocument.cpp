@@ -75,7 +75,7 @@ BOOL CHpsMeshDocument::LoadFromFile(const CString& filePath, std::vector<CString
 	return TRUE;
 }
 
-BOOL CHpsMeshDocument::Parse(std::vector<CString>& logs)
+BOOL CHpsMeshDocument::Parse(std::vector<CString>& logs, BOOL decodeBinary)
 {
 	if (!m_isHpsMesh)
 	{
@@ -99,6 +99,89 @@ BOOL CHpsMeshDocument::Parse(std::vector<CString>& logs)
 		line.Format(_T("Schema = %s"), schemaText.GetString());
 		logs.push_back(line);
 	}
+
+	if (!decodeBinary)
+	{
+		HpsTagData verticesHeader;
+		HpsTagData facetsHeader;
+		HpsTagData textureHeader;
+		HpsTagData uvHeader;
+
+		BOOL ok = TRUE;
+		if (!ExtractTagHeader(m_text, "Vertices", verticesHeader))
+		{
+			logs.push_back(_T("Vertices 태그가 없습니다."));
+			ok = FALSE;
+		}
+		if (!ExtractTagHeader(m_text, "Facets", facetsHeader))
+		{
+			logs.push_back(_T("Facets 태그가 없습니다."));
+			ok = FALSE;
+		}
+		ExtractTagHeader(m_text, "TextureImage", textureHeader);
+		ExtractTagHeader(m_text, "PerVertexTextureCoord", uvHeader);
+
+		if (!ok)
+			return FALSE;
+
+		m_vertexCount = ParseUIntAttribute(verticesHeader.attributes, "vertex_count");
+		m_facetCount = ParseUIntAttribute(facetsHeader.attributes, "facet_count");
+		m_verticesExpectedBytes = ParseUIntAttribute(verticesHeader.attributes, "base64_encoded_bytes");
+		m_facetsExpectedBytes = ParseUIntAttribute(facetsHeader.attributes, "base64_encoded_bytes");
+		m_facetColor = ParseUIntAttribute(facetsHeader.attributes, "color");
+
+		CString line;
+		line.Format(_T("암호화 여부 = %s"), schemaText.CompareNoCase(_T("CE")) == 0 ? _T("예 (CE schema)") : _T("아니오"));
+		logs.push_back(line);
+		if (schemaText.CompareNoCase(_T("CE")) == 0)
+			logs.push_back(_T("CE schema는 Vertices 복호화에 HPS_ENCRYPTION_KEY가 필요합니다."));
+
+		line.Format(_T("vertex_count = %u"), m_vertexCount);
+		logs.push_back(line);
+		line.Format(_T("facet_count = %u"), m_facetCount);
+		logs.push_back(line);
+		line.Format(_T("Vertices encoded bytes = %u"), m_verticesExpectedBytes);
+		logs.push_back(line);
+		line.Format(_T("Facets encoded bytes = %u"), m_facetsExpectedBytes);
+		logs.push_back(line);
+		line.Format(_T("Facets color = %u"), m_facetColor);
+		logs.push_back(line);
+
+		if (textureHeader.found)
+		{
+			m_texture.width = ParseUIntAttribute(textureHeader.attributes, "Width");
+			m_texture.height = ParseUIntAttribute(textureHeader.attributes, "Height");
+			m_texture.bytesPerPixel = ParseUIntAttribute(textureHeader.attributes, "BytesPerPixel");
+			m_textureExpectedBytes = ParseUIntAttribute(textureHeader.attributes, "Base64EncodedBytes");
+			line.Format(_T("TextureImage Width = %u"), m_texture.width);
+			logs.push_back(line);
+			line.Format(_T("TextureImage Height = %u"), m_texture.height);
+			logs.push_back(line);
+			line.Format(_T("BytesPerPixel = %u"), m_texture.bytesPerPixel);
+			logs.push_back(line);
+			line.Format(_T("TextureImage encoded bytes = %u"), m_textureExpectedBytes);
+			logs.push_back(line);
+		}
+		else
+		{
+			logs.push_back(_T("TextureImage 태그가 없습니다."));
+		}
+
+		if (uvHeader.found)
+		{
+			unsigned int uvBytes = ParseUIntAttribute(uvHeader.attributes, "Base64EncodedBytes");
+			line.Format(_T("PerVertexTextureCoord 태그 감지: encoded bytes = %u"), uvBytes);
+			logs.push_back(line);
+		}
+		else
+		{
+			logs.push_back(_T("PerVertexTextureCoord 태그가 없습니다."));
+		}
+
+		logs.push_back(_T("경량 분석 완료: Base64 디코딩 및 STL/이미지 데이터 해석은 수행하지 않았습니다."));
+		return TRUE;
+	}
+
 	if (!ExtractTag(m_text, "Vertices", verticesTag))
 	{
 		logs.push_back(_T("Vertices 태그가 없습니다."));
@@ -296,6 +379,44 @@ BOOL CHpsMeshDocument::ExtractTag(const std::string& text, const char* tagName, 
 	std::string openText = text.substr(open, openEnd - open + 1);
 	ParseAttributes(openText, tag.attributes);
 	tag.body = text.substr(openEnd + 1, close - openEnd - 1);
+	tag.found = TRUE;
+	return TRUE;
+}
+
+BOOL CHpsMeshDocument::ExtractTagHeader(const std::string& text, const char* tagName, HpsTagData& tag)
+{
+	tag = HpsTagData();
+	std::string openPrefix = "<";
+	openPrefix += tagName;
+
+	size_t open = std::string::npos;
+	size_t searchFrom = 0;
+	while (TRUE)
+	{
+		size_t candidate = text.find(openPrefix, searchFrom);
+		if (candidate == std::string::npos)
+			return FALSE;
+
+		size_t next = candidate + openPrefix.size();
+		if (next < text.size())
+		{
+			char ch = text[next];
+			if (ch == '>' || ch == '/' || ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n')
+			{
+				open = candidate;
+				break;
+			}
+		}
+
+		searchFrom = candidate + openPrefix.size();
+	}
+
+	size_t openEnd = text.find('>', open);
+	if (openEnd == std::string::npos)
+		return FALSE;
+
+	std::string openText = text.substr(open, openEnd - open + 1);
+	ParseAttributes(openText, tag.attributes);
 	tag.found = TRUE;
 	return TRUE;
 }

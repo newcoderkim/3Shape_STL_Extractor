@@ -31,7 +31,7 @@ public:
 	CHpsMeshDocument();
 
 	BOOL LoadFromFile(const CString& filePath, std::vector<CString>& logs);
-	BOOL Parse(std::vector<CString>& logs);
+	BOOL Parse(std::vector<CString>& logs, BOOL decodeBinary = TRUE);
 	BOOL SaveDebugFiles(const CString& outputFolder, std::vector<CString>& logs) const;
 
 	BOOL IsDicom() const { return m_isDicom; }
@@ -48,6 +48,7 @@ public:
 	const CMeshData& GetMeshData() const { return m_mesh; }
 
 	static BOOL ExtractTag(const std::string& text, const char* tagName, HpsTagData& tag);
+	static BOOL ExtractTagHeader(const std::string& text, const char* tagName, HpsTagData& tag);
 	static void ParseAttributes(const std::string& tagOpenText, std::map<std::string, std::string>& attrs);
 
 private:
